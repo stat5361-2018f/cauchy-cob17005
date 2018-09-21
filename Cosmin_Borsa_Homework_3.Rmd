@@ -1,0 +1,261 @@
+---
+title: "Optimization in R Markdown"
+# subtitle: "possible subtitle goes here"
+author:
+  - Cosmin Borsa^[<cosmin.borsa@uconn.edu>; M.S. in Applied Financial Mathematics,
+    Department of Mathematics, University of Connecticut.]
+date: "`r format(Sys.time(), '%d %B %Y')`"
+documentclass: article
+papersize: letter
+fontsize: 11pt
+bibliography: template.bib
+biblio-style: asa
+keywords: Template, R Markdown, bookdown, Data Lab
+# keywords set in YAML header here only go to the properties of the PDF output
+# the keywords that appear in PDF output are set in latex/before_body.tex
+output:
+  bookdown::pdf_document2
+  bookdown::html_document2
+abstract: |
+    This is a template mainly designed for data science lab projects. In this
+    template, we review most common components of a single R Markdown document
+    with the power of the **bookdown** package and demonstrate their basic usage
+    through examples.
+---
+
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+## some utility functions, see the source code for details
+source("utils_template.R")
+
+## specify the packages needed
+pkgs <- c("DT", "leaflet", "splines2", "webshot", "graphics", "elliptic")
+need.packages(pkgs)
+
+## external data can be read in by regular functions,
+## such as read.table or load
+
+## for latex and html output
+isHtml <- knitr::is_html_output()
+isLatex <- knitr::is_latex_output()
+latex <- ifelse(isLatex, '\\LaTeX\\', 'LaTeX')
+
+## specify global chunk options
+knitr::opts_chunk$set(fig.width = 5, fig.height = 4, dpi = 300,
+                      out.width = "90%", fig.align = "center")
+
+```
+
+# Cauchy Distribution {#sec:intro}
+
+In the first part of this document we will estimate the location parameter $\theta$ of a Cauchy distribution with a known scale parameter: $\gamma = 1$. The probability density function is of such a Cauchy distributuion is given by the formula \@ref(eq:Cauchy):
+
+\begin{align}
+    f(x;\theta) = \frac{1}{\pi(1 + (x - \theta)^2)} \qquad x, \theta \in \mathbb{R}
+    (\#eq:Cauchy)
+\end{align}
+
+Next we are going to take a sample of size $n$ Cauchy distributed random variables $X_1, \dots, X_n$. Using this sample we are going to maximize the likelihood function $L(\theta)$ of the given Cauchy distribution in order to evaluate the location parameter $\theta$. However, maximizing the likelihood function $L(\theta)$ is quite challenging, so we are going to maximize the log-likelihood function $l(\theta)$ instead. We can used this compuational shortcut since the natural logarithm is a strictly increasing function, and the logarithm of a function achieves its maximum value at the same points as the function itself.
+
+Since $X_1, X_2, ..., X_n$ are independent and identically distributed random variables, the formulas for the likelihood $L(\theta)$ and log-likelihood function $l(\theta)$ are computed as follows: 
+
+\begin{align}
+    L(\theta) = f(X_1;\theta) \cdot f(X_2;\theta) \cdot \ldots \cdot f(X_n;\theta)
+              = \prod_{i = 1}^{n} \frac{1}{\pi(1 + (X_i - \theta)^2)} 
+\end{align}
+\begin{align}
+    l(\theta) = \log(L(\theta)) = \log\left(\prod_{i = 1}^{n} \frac{1}{\pi(1 + (X_i - \theta)^2)}\right) = \sum_{i=1}^{n}\log\left(\frac{1}{\pi(1 + (X_i - \theta)^2)}\right) \\  
+    l(\theta) = \sum_{i=1}^{n}\log\left(\frac{1}{\pi}\right) + \sum_{i=1}^{n}\log\left(\frac{1}{1 + (X_i - \theta)^2}\right) = -n\log(\pi) - \sum_{i=1}^{n}\log\left(1 + (X_i - \theta)^2\right)
+    (\#eq:loglikelihood)  \\ \\ 
+\end{align}
+
+In order to compute the Fisher information, we first need to obtain the first and the second derivative with respect to $\theta$ of log-likelihood function $l(\theta)$. The  derivative with respect to $\theta$ of the natural logarithm of the likelihood function is called the score function.
+
+\begin{align}
+    \frac{\partial l(\theta)}{\partial \theta} = \frac{\partial -n\log(\pi)}{\partial \theta} - \frac{\partial}{\partial \theta}\sum_{i=1}^{n}\log\left(1 + (X_i - \theta)^2\right) = - \sum_{i=1}^{n} \frac{1}{1 + (X_i - \theta)^2} \cdot 2(X_i - \theta)(-1)  \\
+\end{align}
+
+\begin{align}
+    \frac{\partial l(\theta)}{\partial \theta} = - \sum_{i=1}^{n} \frac{2(\theta - X_i)}{1 + (X_i - \theta)^2} (\#eq:likelidiffcauchy)
+\end{align}
+
+\begin{align}
+    \frac{\partial^2 l(\theta)}{\partial \theta^2} =  - \frac{\partial}{\partial \theta} \sum_{i=1}^{n} \frac{2(\theta - X_i)}{1 + (X_i - \theta)^2} = -2 \sum_{i=1}^{n} \frac{1 + (X_i - \theta)^2 - (\theta - X_i) 2 (X_i - \theta)(-1)}{(1 + (X_i - \theta)^2)^2}
+\end{align}
+
+\begin{align}    
+     \frac{\partial^2 l(\theta)}{\partial \theta^2} = -2 \sum_{i=1}^{n} \frac{1- (X_i - \theta)^2}{(1 + (X_i - \theta)^2)^2} (\#eq:likeli2diffcauchy) \\ \\
+\end{align}
+
+The Fisher information is defined to be the variance of the score function. Since expected value of the score function is $0$, the Fisher information is actually equal to the second moment of the score function. However, if the log-likelihood function is twice differentiable with respect to $\theta$, the Fisher information may also be written as:
+
+\begin{align}
+  I(\theta) = - E \left[ \left( \frac{\partial l(\theta)}{\partial \theta} \right)^2 \right] = - E \left[ \frac{\partial^2 l(\theta)}{\partial \theta^2} \right]  = - E \left[ -2 \sum_{i=1}^{n} \frac{1- (X_i - \theta)^2}{(1 + (X_i - \theta)^2)^2} \right] \\
+\end{align} 
+
+\begin{align}
+  I(\theta) = 2 \sum_{i=1}^{n} E \left[ \frac{1- (X_i - \theta)^2}{(1 + (X_i - \theta)^2)^2} \right] = 2 n \cdot E \left[ \frac{1- (X - \theta)^2}{(1 + (X - \theta)^2)^2} \right]
+\end{align} 
+
+\begin{align}
+  I(\theta) = 2 n \cdot \int_{-\infty}^{\infty} \frac{1- (x - \theta)^2}{(1 + (x - \theta)^2)^2} \cdot f(x;\theta) \, dx = \frac{2n}{\pi} \cdot \int_{-\infty}^{\infty} \frac{1- (x - \theta)^2}{(1 + (x - \theta)^2)^2} \cdot \frac{1}{1 + (x - \theta)^2} \, dx
+\end{align} 
+
+Next, we are going to use integration by stubstitution to substitution to evaluate the integral.
+
+\begin{align}
+  u = x - \theta  \\
+  du = dx \\
+\end{align}
+
+\begin{align}
+  I(\theta) = \frac{2n}{\pi} \cdot \int_{-\infty}^{\infty} \frac{1- u^2}{(1 + u^2)^2} \cdot \frac{1}{1 + u^2} \, du
+\end{align} 
+
+To compute the Fisher information we are going to use integration by parts:
+
+\begin{align}
+  f(u) = \frac{u}{(1 + u^2)}  \qquad \text{and} \qquad f'(u) = \frac{1 + u^2 - u (2u)}{(1 + u^2)^2}= \frac{1- u^2}{(1 + u^2)^2} \\
+\end{align}
+  
+\begin{align}  
+  g(u) = \frac{1}{1 + u^2} \qquad \text{and} \qquad g'(u) = -\frac{2u}{(1 + u^2)^2}\\
+\end{align}
+
+\begin{align}
+  I(\theta) = \frac{2n}{\pi} \cdot \int_{-\infty}^{\infty} f'(u) \cdot g(u) \, du = \frac{2n}{\pi} \cdot \left( f(u) \cdot g(u)\Big|_{-\infty}^{\infty} - \int_{-\infty}^{\infty} f(u) \cdot g'(u) \, du \right)
+\end{align}
+
+\begin{align}
+  I(\theta) = \frac{2n}{\pi} \cdot \left( \frac{u}{(1 + u^2)^2} \cdot \frac{1}{1 + u^2} \Big|_{-\infty}^{\infty} - \int_{-\infty}^{\infty} \frac{u}{(1 + u^2)^2} \cdot -\frac{2u}{(1 + u^2)^2} \, du \right)
+\end{align} 
+
+\begin{align}
+  I(\theta) = \frac{4n}{\pi} \cdot \int_{-\infty}^{\infty} \frac{u^2}{(1 + u^2)^3} \, du
+\end{align}
+
+To evaluate the integral we need to use trigonomtric substitution to simplify the computations
+
+\begin{align}
+          u = \tan(\phi) \\
+         du = \sec^2(\phi) d\phi \\
+\end{align}
+  
+Due to the substitution the bounds of the integrals change as well. Thus, for the variable $\phi$, the new bounds will be $\frac{-\pi}{2}$ and $\frac{\pi}{2}$. 
+
+\begin{align}
+  I(\theta) = \frac{4n}{\pi} \cdot \int_{\frac{-\pi}{2}}^{\frac{\pi}{2}} \frac{\tan^2(\phi)}{(1 + \tan^2(\phi))^3} \cdot \sec^2(\phi) \, d\phi = \frac{4n}{\pi} \cdot \int_{\frac{-\pi}{2}}^{\frac{\pi}{2}} \frac{\tan^2(\phi)}{(\sec^2(\phi))^3} \cdot \sec^2(\phi) \, d\phi
+\end{align}
+
+\begin{align}
+  I(\theta) = \frac{4n}{\pi} \cdot \int_{\frac{-\pi}{2}}^{\frac{\pi}{2}} \frac{\tan^2(\phi)}{\sec^4(\phi)} \, d\phi = \frac{4n}{\pi} \cdot \int_{\frac{-\pi}{2}}^{\frac{\pi}{2}} \frac{\sin^2(\phi)\cos^4(\phi)}{\cos^2(\phi)} \, d\phi
+\end{align}
+
+\begin{align}
+  I(\theta) = \frac{n}{\pi} \cdot \int_{\frac{-\pi}{2}}^{\frac{\pi}{2}} 4\sin^2(\phi)\cos^2(\phi) \, d\phi = \frac{n}{\pi} \cdot \int_{\frac{-\pi}{2}}^{\frac{\pi}{2}} \sin^2(2\phi) \, d\phi = \frac{n}{\pi} \cdot \int_{\frac{-\pi}{2}}^{\frac{\pi}{2}} \frac{1-cos(4\phi)}{2} \, d\phi= 
+\end{align}
+
+\begin{align}
+  I(\theta) = \frac{n}{\pi} \left[ \frac{\phi}{2} - \frac{sin(4\phi)}{8} \Big|_{-\frac{\pi}{2}}^{\frac{\pi}{2}} \right] = \frac{n}{\pi} \left[\left( \frac{\frac{\pi}{2}}{2} - \frac{sin(4(\frac{\pi}{2})}{8} \right) - \left( \frac{\frac{-\pi}{2}}{2} - \frac{sin(4(\frac{-\pi}{2})}{8} \right) \right]  \\
+\end{align}
+
+\begin{align}
+  I(\theta) = \frac{n}{\pi} \Big[\Big( \frac{\pi}{4} - 0 \Big) - \Big( \frac{-\pi}{4} - 0 \Big) \Big]  = \frac{n}{\pi}. \frac{\pi}{2} = \frac{n}{2}  (\#eq:fishercauchy) \\ 
+\end{align}
+
+Thus, we have shown that the  Fisher information of this sample $I(\theta)$ is equal to $\frac{n}{2}$.
+
+# Implementation of the log-likelihood function {#sec:implementation}
+
+In this section we would like to generate a random sample of size $n = 10$ with $\theta = 5$. Using the random sample and the log-likelihood function in \@ref(eq:loglikelihood) we will plot the graph of $l(\theta)$ against $\theta$. The log-likelihood curve is plotted in the figure below.
+
+(ref:loglikelihood) Log-Likelihood function of Cauchy Distribution with location parameter $5$
+
+```{r loglikelihood, echo = TRUE, fig.cap = "(ref:loglikelihood)", fig.width = 8}
+set.seed(20180909)
+# Implementation of the log-likelihood function for a given theta
+llhood <- function(theta) {
+  sample <- rcauchy(10, location = 5, scale = 1)  
+  llhood <- -length(sample)*log(pi)
+  for (x_i in sample) { 
+    llhood <- llhood - log(1 + (x_i - theta)^2)
+  }
+  return(llhood)
+}
+```
+```{r llhoodfig, echo = FALSE, fig.cap = "(ref:loglikelihood)", fig.width = 8}
+## Ploting the log-likelihood function against theta
+curve(llhood, -30, 30, n = 1000, xlab = "Theta", ylab = "Log-likelihood")
+```
+
+# Newton-Raphson method {#sec:newton} 
+
+In this section we are going to find the maximum likelihood estimation of the location parameter $\theta$ using the Newton-Raphson method. To find the maximum of the log-likelihood function $l(\theta)$, we need to obtain the roots of the score function, which is the first derivative of $l(\theta)$. These roots are going to give us local maxima of the log-likelihood function. The initial values for the estimation are given on a grid starting from $-10$ and ending with $20$. The numbers increase with increment $0.5$.
+
+To use the Newton-Raphson method, we need to implement the score function.
+
+```{r score, echo = TRUE, message = FALSE, warning = FALSE}
+# The score function is the first derivative of the log-likelihood function
+set.seed(20180909)
+score <- function(theta) {
+  sample <- rcauchy(10, location = 5, scale = 1)
+  score <- 0
+  for (x_i in sample) {
+    score <- score - 2*(theta - x_i)/(1 + (x_i - theta)^2)
+  }
+  return(score)  
+}
+```
+
+After the score function was implemented, we need to code the derivative of the score function. 
+
+```{r dscore, echo = TRUE, message = FALSE, warning = FALSE}
+# The second derivative of the log-likelihood function.
+set.seed(20180909)
+dscore <- function(theta) {
+  sample <- rcauchy(10, location = 5, scale = 1)
+  dscore <- 0
+  for (z in sample) {
+    dscore <- dscore - 2*((1 - (z - theta)^2)/(1 + (z - theta)^2)^2)
+  }
+  return(dscore)
+}
+```
+
+Next, we are going to implement the Newton-Raphson method using the formula:
+
+\begin{align}
+  \theta_{n+1} = \theta_{n} - \frac{l'(\theta_{n})}{l''(\theta_{n})} \\ 
+\end{align}
+
+(ref:cap-Newton) Newton Raphson for finding the MLE
+
+```{r Newton, echo = TRUE, message = FALSE, warning = FALSE}
+set.seed(20180909)
+ipoints <- seq(-10, 20, 0.5)
+table_newton_roots <- data.frame()
+for (x in ipoints) {
+  newton <- newton_raphson(x, score, dscore, maxiter = 10000)
+  table_newton_roots <- rbind(table_newton_roots, c(x, newton$root, llhood(newton$root), newton$iter))
+}
+colnames(table_newton_roots) <- c("Initial Point", "MLE Estimate", "Log-likelihood of estimate", "Number of Iterations")
+
+knitr::kable(table_newton_roots, booktabs = TRUE, caption = "(ref:cap-Newton)" )
+```
+
+# Fixed Point Iterations {#sec:fixedpoint}
+
+# Fisher scoring {#sec:fisher}
+
+# Discussion {#sec:summary}
+
+Unfortunately, the Newton-Raphson method does not converge to the local maximum in the code. I tried to find the problem for hours, but I couldn't figure it out. I believe that the Newton-Raphson method should find a local maximum for $\theta$ that is close to $5$, and the value of the log-likelihood function at thet maximum should be close to $-30$. I'm sorry that I couldn't debug the code to get the solution in time.  
+
+# Reference {-}
+
+[pandoc]: http://pandoc.org/
+[pandocManual]: http://pandoc.org/MANUAL.html
+[repo]: https://github.com/wenjie2wang/datalab-templates
+[taskView]: https://cran.r-project.org/web/views/ReproducibleResearch.html
+[shiny.io]: https://www.shinyapps.io/
+[wenjie-stat.shinyapps]: https://wwenjie-stat.shinyapps.io/minisplines2
